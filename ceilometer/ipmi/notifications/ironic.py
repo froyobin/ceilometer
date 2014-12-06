@@ -63,6 +63,22 @@ def parse_reading(data):
                                 data)
 
 
+
+def parse_event_reading(key,real_data):
+    try:
+        element_array=real_data[key].split('|')
+        if element_array[5].strip(' ').lower()=='asser':
+            volume=1
+        else:
+            if element_array[5].strip(' ').lower()=='deasser':
+                volume=0
+            else:
+                volume=2
+        return volume
+    except ValueError:
+        raise InvalidSensorData('unable to parse sensor reading: %s' %
+                                data)
+
 class InvalidSensorData(ValueError):
     pass
 
@@ -95,6 +111,17 @@ class SensorNotification(plugin.NotificationBase):
         except KeyError:
             return []
 
+    def _package_event_payload(self, message, payload):
+        # NOTE(chdent): How much of the payload should we keep?
+        payload['node'] = message['payload']['node_uuid']
+        info = {'publisher_id': message['publisher_id'],
+                'timestamp': message['payload']['timestamp'],
+                'event_type': message['payload']['event_type'],
+                'user_id': message['payload'].get('user_id'),
+                'project_id': message['payload'].get('project_id'),
+                'payload': payload}
+        return info
+
     def _package_payload(self, message, payload):
         # NOTE(chdent): How much of the payload should we keep?
         payload['node'] = message['payload']['node_uuid']
@@ -105,6 +132,8 @@ class SensorNotification(plugin.NotificationBase):
                 'project_id': message['payload'].get('project_id'),
                 'payload': payload}
         return info
+
+
 
     def process_notification(self, message):
         """Read and process a notification.
@@ -119,45 +148,76 @@ class SensorNotification(plugin.NotificationBase):
         sensor payload is skipped.
         """
         payloads = self._get_sample(message['payload'])
-        for payload in payloads:
-            try:
-                # Provide a fallback resource_id in case parts are missing.
-                resource_id = 'missing id'
-                try:
-                    resource_id = '%(nodeid)s-%(sensorid)s' % {
-                        'nodeid': message['payload']['node_uuid'],
-                        'sensorid': transform_id(payload['Sensor ID'])
-                    }
-                except KeyError as exc:
-                    raise InvalidSensorData('missing key in payload: %s' % exc)
+        if  self.metric == "sel":
+            message_payload=message['payload']
+            name='hardware.ipmi.sel'
+            unit="NA"
+            this_uuid=message_payload['node_uuid']
+            real_message=message_payload['payload']
+            event_key_list=real_message['sel'].keys()
 
-                info = self._package_payload(message, payload)
-
-                try:
-                    sensor_reading = info['payload']['Sensor Reading']
-                except KeyError as exc:
-                    raise InvalidSensorData(
-                        "missing 'Sensor Reading' in payload"
-                    )
-
-                if validate_reading(sensor_reading):
-                    volume, unit = parse_reading(sensor_reading)
-                    yield sample.Sample.from_notification(
-                        name='hardware.ipmi.%s' % self.metric.lower(),
-                        type=sample.TYPE_GAUGE,
-                        unit=unit,
-                        volume=volume,
-                        resource_id=resource_id,
-                        message=info,
-                        user_id=info['user_id'],
-                        project_id=info['project_id'])
-
-            except InvalidSensorData as exc:
-                LOG.warn(
-                    'invalid sensor data for %(resource)s: %(error)s' %
-                    dict(resource=resource_id, error=exc)
-                )
+            for each in event_key_list:
+                resource_id = '%(nodeid)s-%(evenname)s' % {'nodeid':this_uuid,'evenname':each}
+                info=self._package_event_payload(message,real_message)
+                volume= parse_event_reading(each,real_message['sel'])
+                yield sample.Sample.from_notification(
+                    name=name,
+                    type=sample.TYPE_GAUGE,
+                    unit=unit,
+                    volume=volume,
+                    resource_id=resource_id,
+                    message=info,
+                    user_id=info['user_id'],
+                    project_id=info['project_id'])
                 continue
+
+
+
+        else:
+            for payload in payloads:
+                try:
+                    # Provide a fallback resource_id in case parts are missing.
+                    print payload
+                    resource_id = 'missing id'
+                    try:
+                        resource_id = '%(nodeid)s-%(sensorid)s' % {
+                            'nodeid': message['payload']['node_uuid'],
+                            'sensorid': transform_id(payload['Sensor ID'])
+                        }
+
+                    except KeyError as exc:
+                        raise InvalidSensorData('missing key in payload: %s' % exc)
+
+                    info = self._package_payload(message, payload)
+
+                    try:
+                        sensor_reading = info['payload']['Sensor Reading']
+                    except KeyError as exc:
+                        raise InvalidSensorData(
+                            "missing 'Sensor Reading' in payload"
+                        )
+
+                    if validate_reading(sensor_reading):
+                        volume, unit = parse_reading(sensor_reading)
+                        yield sample.Sample.from_notification(
+                            name='hardware.ipmi.%s' % self.metric.lower(),
+                            type=sample.TYPE_GAUGE,
+                            unit=unit,
+                            volume=volume,
+                            resource_id=resource_id,
+                            message=info,
+                            user_id=info['user_id'],
+                            project_id=info['project_id'])
+
+                except InvalidSensorData as exc:
+                    LOG.warn(
+                        'invalid sensor data for %(resource)s: %(error)s' %
+                        dict(resource=resource_id, error=exc)
+                    )
+                    continue
+
+
+
 
 
 class TemperatureSensorNotification(SensorNotification):
@@ -174,3 +234,6 @@ class FanSensorNotification(SensorNotification):
 
 class VoltageSensorNotification(SensorNotification):
     metric = 'Voltage'
+
+class SelNotification(SensorNotification):
+    metric = 'sel'
