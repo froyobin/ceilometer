@@ -165,8 +165,11 @@ def make_query_from_filter(session, query, sample_filter, require_meter=True):
         query = query.filter(
             models.Resource.project_id == sample_filter.project)
     if sample_filter.resource:
-        query = query.filter(
-            models.Resource.resource_id == sample_filter.resource)
+        if sample_filter.resource_op == 'like':
+            query = query.filter(models.Resource.resource_id.like('%' + sample_filter.resource + '%'))
+        else:
+            query = query.filter(
+                models.Resource.resource_id == sample_filter.resource)
     if sample_filter.message_id:
         query = query.filter(
             models.Sample.message_id == sample_filter.message_id)

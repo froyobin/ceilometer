@@ -108,6 +108,7 @@ class SampleFilter(object):
     :param end: Latest time point in the request.
     :param end_timestamp_op: Latest timestamp operation in the request.
     :param resource: Optional filter for resource id.
+    :param resouce_op: Operation for filtering resource
     :param meter: Optional filter for meter type using the meter name.
     :param source: Optional source filter.
     :param message_id: Optional sample_id filter.
@@ -116,7 +117,7 @@ class SampleFilter(object):
     def __init__(self, user=None, project=None,
                  start=None, start_timestamp_op=None,
                  end=None, end_timestamp_op=None,
-                 resource=None, meter=None,
+                 resource=None, resource_op = None, meter=None,
                  source=None, message_id=None,
                  metaquery=None):
         self.user = user
@@ -126,6 +127,7 @@ class SampleFilter(object):
         self.end = utils.sanitize_timestamp(end)
         self.end_timestamp_op = end_timestamp_op
         self.resource = resource
+        self.resource_op = resource_op
         self.meter = meter
         self.source = source
         self.metaquery = metaquery or {}
@@ -139,6 +141,7 @@ class SampleFilter(object):
                 " end: %s,"
                 " end_timestamp_op: %s,"
                 " resource: %s,"
+                " resource_op: %s,"
                 " meter: %s,"
                 " source: %s,"
                 " metaquery: %s,"
@@ -150,6 +153,7 @@ class SampleFilter(object):
                  self.end,
                  self.end_timestamp_op,
                  self.resource,
+                 self.resource_op,
                  self.meter,
                  self.source,
                  self.metaquery,

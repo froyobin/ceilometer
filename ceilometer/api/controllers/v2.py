@@ -434,8 +434,9 @@ def _validate_query(query, db_func, internal_keys=None,
                                                          'search_offset',
                                                          'eq',
                                                          allow_timestamps)
+    has_resource_query = _validate_operation_field(query, "resource_id", ('eq', 'like'))
 
-    if has_search_offset_query and not has_timestamp_query:
+    if has_search_offset_query and not has_timestamp_query and not has_resource_query:
         raise wsme.exc.InvalidInput('field', 'search_offset',
                                     "search_offset cannot be used without " +
                                     "timestamp")
@@ -445,7 +446,7 @@ def _validate_query(query, db_func, internal_keys=None,
                 field.startswith('resource_metadata.'))
 
     for i in query:
-        if i.field not in ('timestamp', 'search_offset'):
+        if i.field not in ('timestamp', 'search_offset', 'resource_id'):
             key = translation.get(i.field, i.field)
             operator = i.op
             if key in valid_keys or _is_field_metadata(i.field):
@@ -505,6 +506,17 @@ def _validate_timestamp_fields(query, field_name, operator_list,
     return False
 
 
+def _validate_operation_field(query, field_name, operator_list):
+    for item in query:
+        if item.field == field_name:
+            if item.op not in operator_list:
+                raise wsme.exc.InvalidInput('op', item.op,
+                                            'unimplemented operator for %s' %
+                                            item.field)
+            return True
+    return False
+
+
 def _query_to_kwargs(query, db_func, internal_keys=None,
                      allow_timestamps=True):
     internal_keys = internal_keys or []
@@ -527,6 +539,10 @@ def _query_to_kwargs(query, db_func, internal_keys=None,
             elif i.op in ('gt', 'ge'):
                 stamp['start_timestamp'] = i.value
                 stamp['start_timestamp_op'] = i.op
+        elif i.field == 'resource_id':
+            if i.op in ('like', 'eq'):
+                kwargs['resource'] = i.value
+                kwargs['resource_op'] = i.op
         else:
             if i.op == 'eq':
                 if i.field == 'search_offset':
