@@ -148,7 +148,7 @@ class SensorNotification(plugin.NotificationBase):
         sensor payload is skipped.
         """
         payloads = self._get_sample(message['payload'])
-        if  self.metric =="sel":
+        if self.metric =="sel":
 
             message_payload=message['payload']
             name=message_payload['event_type']
@@ -157,10 +157,8 @@ class SensorNotification(plugin.NotificationBase):
             this_uuid=message_payload['node_uuid']
             real_message=message_payload['payload']
             event_key_list=real_message[short_name].keys()
-
             for each in event_key_list:
                 volume= parse_event_reading(each,real_message[short_name])
-
                 resource_id = '%(nodeid)s-%(evenname)s' % {'nodeid':this_uuid,'evenname':each}
                 info=self._package_event_payload(message,real_message)
 
